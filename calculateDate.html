@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name=renderer content=webkit>
+  <title>test</title>
+  <script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js"></script>
+  <script src="http://cdn.staticfile.org/moment.js/2.24.0/moment.min.js"></script>
+</head>
+
+<body>
+  <button onClick="handleQh()">切换时间</button>
+  <script>
+
+
+
+    /*-----------------------start-----------------------*/
+
+    // 夏令时: 5月1日~9月30日 8:28—12:00，13:30—17:50
+    // 冬令时：10月1日~4~30日 8:28—12:00，13:00—17:20
+    function getDay(startDate, endDate, holidays) {
+      var self = {};
+      var newAvailableTime = [];
+
+      var sDate = startDate && startDate.split(' ')[0] || '';
+      var eDate = startDate && endDate.split(' ')[0] || '';
+      var sTime = startDate && startDate.split(' ')[1] || '';
+      var eTime = startDate && endDate.split(' ')[1] || '';
+
+      if (new Date(startDate.replace(/-/g, '/')).getTime() > new Date(endDate.replace(/-/g, '/')).getTime()) {
+        alert('结束时间必须大于起始时间！')
+        self.getResult = function () { };
+        return self;
+      }
+      if (!sTime || !eTime) {
+        self.getResult = function () { };
+        return self;
+      }
+
+      // 如果假期里有包含起始或者时间
+      var includeStartTime = false;
+      var includeEndTime = false;
+      var subHolidays = holidays ? holidays.length : 0;
+      if (holidays) {
+        includeStartTime = holidays.indexOf(sDate) !== -1
+        includeEndTime = holidays.indexOf(eDate) !== -1
+      }
+
+
+      var sMounth = sDate.split('-')[1]
+      var eMounth = eDate.split('-')[1]
+      var mayToSept = ['05', '06', '07', '08', '09'];
+      if (!sMounth || !eMounth) {
+        self.getResult = function () { };
+        return self;
+      };
+      if (eMounth - sMounth > 1) {
+        alert('目前不支持计算请假超过两个月的天数，例如2020-06-01至2020-08-01');
+        self.getResult = function () { };
+        return self;
+      }
+      if (!mayToSept.indexOf) {
+        console.log('ie不支持indexOf');
+        self.getResult = function () { };
+        return self;
+      }
+      // 起始日期是否为夏令
+      var IsSummerStartTime = mayToSept.indexOf(sMounth) !== -1
+      // 结束日期是否为冬令
+      var IsSummerEndTime = mayToSept.indexOf(eMounth) !== -1
+      var isSomeDay = sDate === eDate;
+
+      self.mergeTime = function (a, b) {
+        var newRange = [];
+        newRange = newRange.concat(a);
+        newRange = newRange.concat(b);
+        return newRange
+      }
+
+
+      // 获取分钟数填充到数组
+      self.getMinuteArr = function (date, hour, s, e) {
+        var start = s || 0;// 起始分钟
+        var end = e || 60;// 结束分钟
+        var arr = [];
+        if (hour < 10) {
+          hour = '0' + hour
+        }
+        for (var i = start; i < end; i++) {
+          if (i < 10) {
+            i = '0' + i
+          }
+
+          arr.push(date + ' ' + hour + ':' + i)
+        }
+        return arr;
+      };
+      // 有效时间区间 08:28-12:00
+      self.set_time_am = function (date) {
+        var time = [];
+        time = time.concat(self.getMinuteArr(date, 08, 28))
+        var x = 09
+        while (x < 12) {
+          time = time.concat(self.getMinuteArr(date, x, 0))
+          x++
+        };
+        time = time.concat(date + ' ' + '12:00')
+        return time;
+      };
+      // 有效时间区间13:30-17:50
+      self.set_time_pm = function (date, sPmMinute, ePmMinute) {//sPmMinute中午的起始分钟 ePmMinute中午的结束分钟
+        var time = [];
+        time = time.concat(self.getMinuteArr(date, 13, sPmMinute))
+        var x = 14
+        while (x < 17) {
+          time = time.concat(self.getMinuteArr(date, x, 0))
+          x++
+        }
+        time = time.concat(self.getMinuteArr(date, 17, 0, ePmMinute))
+        return time;
+      };
+
+
+
+
+      self.getAllTimeArr = function () {
+        if (isSomeDay) {
+          // 起始和结束日期相等时，数组取一天的
+          // 起始时间判断是否为夏令
+          var res = [];
+          if (IsSummerStartTime) {
+            res = self.mergeTime(self.set_time_am(sDate), self.set_time_pm(sDate, 30, 51));
+          } else {
+            res = self.mergeTime(self.set_time_am(sDate), self.set_time_pm(sDate, 0, 21));
+          };
+          return res;
+        } else {
+          // 多天的，数组取两天的
+          // 起始时间判断是否为夏令
+          var res = [], resB = [];
+          if (IsSummerStartTime) {
+            res = self.mergeTime(self.set_time_am(sDate), self.set_time_pm(sDate, 30, 51));
+          } else {
+            res = self.mergeTime(self.set_time_am(sDate), self.set_time_pm(sDate, 0, 21));
+          };
+          // 结束时间判断是否为夏令
+          if (IsSummerEndTime) {
+            resB = self.mergeTime(self.set_time_am(eDate), self.set_time_pm(eDate, 30, 51));
+          } else {
+            resB = self.mergeTime(self.set_time_am(eDate), self.set_time_pm(eDate, 0, 21));
+          }
+          return self.mergeTime(res, resB);
+        }
+      }
+      // 计算同一天
+      // 夏令时: 5月1日~9月30日 8:28—12:00，13:30—17:50
+      // 冬令时：10月1日~4~30日 8:28—12:00，13:00—17:20
+      self.calculateSomeDay = function (timeRange, beginTime, endTime) {
+
+        var startT = beginTime && beginTime.split(" ") || [];
+        var endT = endTime && endTime.split(" ") || [];
+        if (startT.length !== 2 || endT.length !== 2) {
+          return false;
+        }
+
+        var s = new Date(beginTime.replace(/-/g, '/'));
+        var e = new Date(endTime.replace(/-/g, '/'));
+        var time12_00 = startT[0] + ' ' + '12:00'
+        var time13_30 = startT[0] + ' ' + '13:30'
+        var time17_50 = startT[0] + ' ' + '17:50'
+        var timePoint = new Date(time12_00.replace(/-/g, '/'));
+        var timePointB = new Date(time13_30.replace(/-/g, '/'));
+        var timePointC = new Date(time17_50.replace(/-/g, '/'));
+
+        var startIndex = 0, endIndex = 0;
+
+        // 开始时间超过17:50
+        if (s.getTime() > timePointC.getTime()) {
+          alert('开始时间有误！');
+          return 0;
+        }
+        startIndex = timeRange.indexOf(beginTime);
+        // 如果起始时间小于12:00, 那就取8:28为开始
+        if (s.getTime() < timePoint.getTime()) {
+          startIndex = startIndex !== -1 ? startIndex : 0;
+        } else {
+          startIndex = startIndex !== -1 ? startIndex : timeRange.indexOf(time13_30);
+        }
+
+        endIndex = timeRange.indexOf(endTime) + 1
+        // 如果结束时间小于13:30, 那就取12:00为结尾
+        if (e.getTime() < timePointB.getTime()) {
+          endIndex = endIndex !== 0 ? endIndex : timeRange.indexOf(time12_00) + 1;
+        } else {
+          endIndex = endIndex !== 0 ? endIndex : timeRange.length;
+        }
+
+        timeRange.slice(startIndex, endIndex)
+        return (timeRange.slice(startIndex, endIndex).length / 474).toFixed(2);
+      }
+
+      // 计算不同天
+      // 夏令时: 5月1日~9月30日 8:28—12:00，13:30—17:50
+      // 冬令时：10月1日~4~30日 8:28—12:00，13:00—17:20
+      self.calculateDiffDay = function (timeRange, beginTime, endTime) {
+        var startT = beginTime && beginTime.split(" ") || [];
+        var endT = endTime && endTime.split(" ") || [];
+        if (startT.length !== 2 || endT.length !== 2) {
+          return false;
+        }
+        // 1.对事件进行处理
+        var firsttime = Date.parse(startT[0].replace(/-/g, '/') + " 00:00:00");
+        var secondtime = Date.parse(endT[0].replace(/-/g, '/') + " 00:00:00");
+        // 2.获取时间间隔
+        var timespan = secondtime - firsttime;
+
+        // 3.获取天
+        var difDay = Math.floor(timespan / 1000 / 60 / 60 / 24) - 1;
+
+        var s = new Date(beginTime.replace(/-/g, '/'));
+        var e = new Date(endTime.replace(/-/g, '/'));
+        // 设置中午开始的时间点
+        var pmStartTime = IsSummerStartTime ? '13:30' : '13:00';
+        var pmEndTime = IsSummerEndTime ? '13:30' : '13:00';
+        // 起始时间是否大于12:00，结束时间是否大于13:30
+        var sTime8_28 = startT[0] + ' ' + '08:28'
+        var sTime13_30 = startT[0] + ' ' + pmStartTime
+
+        var sTimePoint8_28 = new Date(sTime8_28.replace(/-/g, '/'));
+        var sTimePoint13_30 = new Date(sTime13_30.replace(/-/g, '/'));
+
+        var eTime8_28 = endT[0] + ' ' + '08:28'
+        var eTime12_00 = endT[0] + ' ' + '12:00'
+        var eTime13_30 = endT[0] + ' ' + pmEndTime
+
+        var eTimePoint8_28 = new Date(eTime8_28.replace(/-/g, '/'));
+        var eTimePoint13_30 = new Date(eTime13_30.replace(/-/g, '/'));
+
+        var startIndex = 0, endIndex = 0;
+        startIndex = timeRange.indexOf(beginTime);
+        endIndex = timeRange.indexOf(endTime) + 1
+        // (开始时间在有效时间外的)
+        if (startIndex === -1) {
+          // 如果开始时间小于8:28,取8:28
+          if (s < sTimePoint8_28) {
+            startIndex = 0
+          } else if (s < sTimePoint13_30) {
+            // 如果开始时间小于13:30,取13:30
+            startIndex = timeRange.indexOf(sTime13_30)
+          } else {
+            // 如果开始时间小于17:50,不取
+            startIndex = timeRange.length / 2
+          }
+        }
+
+        // (结算时间在有效时间外的)
+        if (endIndex === 0) {
+          // 如果结束时间小于8:28,不取
+          if (e < eTimePoint8_28) {
+            endIndex = timeRange.length / 2 - 1
+          } else if (e < eTimePoint13_30) {
+            // 如果结束时间小于13:30,取时间点12:00
+            endIndex = timeRange.indexOf(eTime12_00) + 1
+          } else {
+            // 如果结束时间大于17:50,取时间点17:50
+            endIndex = timeRange.length
+          }
+        }
+        // 如果假期里有包含起始时间
+        if (includeStartTime) {
+          startIndex = timeRange.length / 2;
+          subHolidays -= 1;
+        };
+        // 如果假期里有包含结束时间
+        if (includeEndTime) {
+          endIndex = timeRange.length / 2;
+          subHolidays -= 1;
+        };
+        var mildIndex = timeRange.length / 2;
+        var beforeDay = timeRange.slice(startIndex, mildIndex)
+        var afterDay = timeRange.slice(mildIndex, endIndex)
+        var newRange = self.mergeTime(beforeDay, afterDay);
+
+
+        return (newRange.length / 474 + difDay).toFixed(2);
+      }
+
+      self.getResult = function () {
+        var timeRange = self.getAllTimeArr();
+        if (isSomeDay) {
+          return self.calculateSomeDay(timeRange, startDate, endDate);
+        } else {
+          return self.calculateDiffDay(timeRange, startDate, endDate) - subHolidays;
+        }
+      }
+      return self;
+    };
+
+
+
+    function fetchDay(startDate, endDate, fn) {
+      var sDate = startDate && startDate.split(' ')[0] || '';
+      var eDate = startDate && endDate.split(' ')[0] || '';
+      var sDateArr = sDate.split('-');
+      var eDateArr = eDate.split('-');
+
+      var isSomeDay = sDate === eDate;
+      var isSomeMounth = sDateArr[1] === eDateArr[1];
+      var mergeTime = function (a, b) {
+        var newRange = [];
+        newRange = newRange.concat(a);
+        newRange = newRange.concat(b);
+        return newRange
+      }
+
+      var requireHolidaySomeMounth = function (obj, callback) {
+        var rDate = obj.rDate;
+        var sDateDay = obj.sDateDay;
+        var eDateDay = obj.eDateDay;
+        var cDate = obj.cDate || '';
+        cDate = cDate.slice(0, 8);
+        var newDayArr = [];
+        $.ajax({
+          url: "https://zhiwei-tech.com/console/api/holiday/" + rDate + "&" + Math.random(),
+          crossDomain: true == !(document.all), //跨域
+          success: function (r) {
+            var data = JSON.parse(r)
+            var obj = data[rDate];
+            var dayArr = [];
+            for (var key in obj) {
+              if (obj[key] !== 0) {
+                if (key < 10) {
+                  key = '0' + key
+                }
+                dayArr.push(key);
+              }
+            };
+
+            // 如果是大于起始时间并且小于结束时间，取大于起始时间的天数
+            for (var i = 0; i < dayArr.length; i++) {
+              if (Number(dayArr[i]) >= Number(sDateDay) && Number(dayArr[i]) <= Number(eDateDay)) {
+                newDayArr.push(cDate + dayArr[i]);
+              }
+            }
+            callback && callback(newDayArr);
+          }
+        })
+      }
+
+      var requireHoliday = function (obj, callback) {
+        var rDate = obj.rDate;
+        var rDay = obj.rDay;
+        var cDate = obj.cDate || '';
+        cDate = cDate.slice(0, 8);
+        var isStart = obj.isStart;
+        var newDayArr = [];
+        $.ajax({
+          url: "https://zhiwei-tech.com/console/api/holiday/" + rDate + "&" + Math.random(),
+          crossDomain: true == !(document.all), //跨域
+          success: function (r) {
+            var data = JSON.parse(r)
+            var obj = data[rDate]
+            var dayArr = [];
+
+            for (var key in obj) {
+              if (obj[key] !== 0) {
+                if (key < 10) {
+                  key = '0' + key
+                }
+                dayArr.push(key);
+              }
+            };
+            if (isStart) {
+              // 如果是起始时间，取大于起始时间的天数
+              for (var i = 0; i < dayArr.length; i++) {
+                if (Number(dayArr[i]) >= Number(rDay)) {
+                  newDayArr.push(cDate + dayArr[i]);
+                }
+              }
+            } else {
+              // 如果是结束时间，取小于结束时间的天数
+              for (var i = 0; i < dayArr.length; i++) {
+                if (Number(dayArr[i]) <= Number(rDay)) {
+                  newDayArr.push(cDate + dayArr[i]);
+                }
+              }
+            };
+            alert(callback)
+            callback && callback(newDayArr);
+          }
+        })
+      }
+
+      // 获取节假日
+      var getHoliday = function () {
+
+        var sDateDay = sDateArr[0] + sDateArr[1];
+        var eDateDay = eDateArr[0] + eDateArr[1];
+        var startArr = [], endArr = []
+
+        if (!isSomeMounth) {
+          requireHoliday({ 'rDate': sDateDay, 'rDay': sDateArr[2], cDate: sDate, 'isStart': true }, getStartArrFn);
+
+          function getStartArrFn(arr) {
+            alert(232)
+            startArr = arr;
+            requireHoliday({ 'rDate': eDateDay, 'rDay': eDateArr[2], cDate: eDate, 'isStart': false }, getEndArrFn);
+            function getEndArrFn(arr) {
+              endArr = arr;
+              var holidays = mergeTime(startArr, endArr);
+              fn && fn(holidays);
+
+            };
+          };
+        } else {
+
+          requireHolidaySomeMounth({ 'rDate': sDateDay, 'sDateDay': sDateArr[2], 'eDateDay': eDateArr[2], cDate: sDate, }, getStartArrFn);
+          function getStartArrFn(arr) {
+            startArr = arr;
+            fn && fn(startArr);
+          };
+
+        }
+      }
+      getHoliday()
+    }
+
+
+    function getExcludeDay(startDate, endDate, callBack) {
+      var allDays = 0;
+      var sDate = startDate && startDate.split(' ')[0] || '';
+      var eDate = startDate && endDate.split(' ')[0] || '';
+      var isSomeDay = sDate === eDate;
+      var allDays = 0;
+
+      if (isSomeDay) {
+        allDays = getDay(startDate, endDate).getResult();
+        callBack && callBack(allDays);
+      } else {
+        fetchDay(startDate, endDate, getRes);
+        function getRes(subDay) {
+          allDays = getDay(startDate, endDate, subDay).getResult();
+          callBack && callBack(allDays);
+        }
+      }
+    }
+    /*-----------------------end-----------------------*/
+
+    // 日期格式必须严格按这样
+    var startTimeX = "2020-07-30 11:02";
+    var endTimeX = "2020-08-31";
+    console.log('包含节假日的天数:' + getDay(startTimeX, endTimeX).getResult())
+
+    function handleQh() {
+      var startTimeX = "2020-07-30 11:02";
+      var endTimeX = "2020-08-31 12:20";
+      console.log('包含节假日的天数:' + getDay(startTimeX, endTimeX).getResult())
+    };
+
+    // 包含节假日的天数
+
+    // 排除节假日的天数
+    // getExcludeDay(startTimeX, endTimeX, function (days) {
+    //   console.log('排除节假日的天数:' + days);
+    // })
+
+  </script>
+</body>
+
+</html>
